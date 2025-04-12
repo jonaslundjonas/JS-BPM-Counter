@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BPM Counter with Timer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #212121; /* Dark Grey */
+            --text-color: #e0e0e0;       /* Light Grey */
+            --display-color: #ffffff;   /* White */
+            --accent-color: #4285F4;     /* Google Blue */
+            --inactive-color: #616161;  /* Medium Grey */
+            --font-family: 'Roboto', sans-serif;
+        }
+
+        html, body {
+             height: 100%; /* Ensure body takes full height */
+             margin: 0;
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            display: flex; /* Use flexbox for centering */
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Use min-height */
+            user-select: none; /* Prevent text selection */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            /* Allow touch actions like scrolling if needed, but prevent double-tap zoom */
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+        }
+
+        .container {
+            text-align: center;
+            background-color: #303030; /* Slightly lighter dark */
+            padding: 40px 50px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            min-width: 300px; /* Minimum width */
+            max-width: 90%; /* Prevent container from getting too wide on large screens */
+            box-sizing: border-box; /* Include padding in width calculation */
+        }
+
+        h1 {
+            color: var(--display-color);
+            font-weight: 300;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 2em;
+        }
+
+        p.instructions {
+            font-weight: 300;
+            margin-bottom: 10px; /* Reduced bottom margin */
+            font-size: 0.9em;
+            color: var(--inactive-color);
+        }
+
+        /* --- Timer Styles --- */
+        .timer-info {
+            font-size: 0.9em;
+            color: var(--inactive-color);
+            margin-bottom: 25px; /* Space before BPM display */
+            height: 1.2em; /* Reserve space even when empty */
+        }
+
+        #timer-display {
+            font-weight: 400;
+            color: var(--text-color);
+            min-width: 45px; /* Space for MM:SS */
+            display: inline-block; /* Prevent layout shifts */
+            text-align: right;
+        }
+        /* --- End Timer Styles --- */
+
+        /* Make BPM display the tap target */
+        .bpm-display {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: var(--background-color);
+            border-radius: 4px;
+            transition: background-color 0.1s ease-out;
+            cursor: pointer; /* Indicate it's clickable/tappable */
+        }
+
+        .bpm-display.tapped {
+            background-color: #424242; /* Slightly lighter on tap */
+        }
+
+        #bpm-value {
+            font-size: 4.5em;
+            font-weight: 700;
+            color: var(--display-color);
+            line-height: 1;
+            display: inline-block;
+            min-width: 150px; /* Ensure enough space for decimals */
+            text-align: center;
+            pointer-events: none; /* Prevent text selection inside display */
+        }
+
+        .bpm-unit {
+            font-size: 1.5em;
+            font-weight: 300;
+            color: var(--inactive-color);
+            margin-left: 10px;
+             pointer-events: none; /* Prevent text selection inside display */
+        }
+
+        #reset-button {
+            background-color: var(--accent-color);
+            color: var(--display-color);
+            border: none;
+            padding: 12px 25px;
+            font-size: 1em;
+            font-weight: 400;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            margin-top: 15px; /* Adjusted margin */
+            outline: none;
+        }
+
+        #reset-button:hover {
+            background-color: #3367D6; /* Slightly darker blue */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+         #reset-button:active {
+            background-color: #2A56C6; /* Even darker blue */
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+         }
+
+         /* Footer Credit Style */
+         .footer-credit {
+            font-size: 0.75em;
+            color: var(--inactive-color);
+            margin-top: 30px; /* Space above footer */
+            margin-bottom: 0; /* No extra space below */
+         }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>BPM Counter</h1>
+        <p class="instructions">Tap SPACEBAR or the display below.</p>
+        <p class="timer-info">Time Elapsed: <span id="timer-display">00:00</span></p>
+
+        <!-- The BPM display area is the main tap target -->
+        <div class="bpm-display" id="tap-target">
+            <span id="bpm-value">0.00</span>
+            <span class="bpm-unit">BPM</span>
+        </div>
+
+        <button id="reset-button">Reset</button>
+
+        <!-- Footer Credit -->
+        <p class="footer-credit">Created by Jonas Lund © 2025</p>
+    </div>
+
+    <script>
+        // --- DOM Element References ---
+        const bpmValueElement = document.getElementById('bpm-value');
+        const timerDisplayElement = document.getElementById('timer-display');
+        const tapTargetElement = document.getElementById('tap-target'); // The div for tapping and visual feedback
+        const resetButton = document.getElementById('reset-button');
+
+        // --- State Variables ---
+        let tapTimestamps = []; // Stores timestamps of recent taps
+        const maxTapsToAverage = 10; // Number of taps to average for BPM calculation
+        const resetTimeoutDuration = 2000; // Reset after 2 seconds of inactivity (ms)
+        let resetTimer = null; // Stores the timeout ID for inactivity reset
+        let startTime = null; // Timestamp of the first tap in the current sequence
+        let timerIntervalId = null; // Stores the interval ID for the elapsed timer
+
+        // --- Core Functions ---
+
+        /**
+         * Handles a tap event (from spacebar or screen tap).
+         * Records timestamp, updates BPM, manages timers, provides feedback.
+         */
+        function handleTap() {
+            const now = performance.now(); // Use high-resolution time
+
+            // Provide visual feedback on the tap target
+            tapTargetElement.classList.add('tapped');
+            setTimeout(() => tapTargetElement.classList.remove('tapped'), 100); // Remove feedback shortly after
+
+            // Clear the inactivity reset timer
+            clearTimeout(resetTimer);
+
+            // Start the elapsed timer on the very first tap of a sequence
+            if (startTime === null) {
+                startTime = now;
+                startTimerInterval();
+            }
+
+            // Record the tap timestamp
+            tapTimestamps.push(now);
+
+            // Keep only the most recent taps for averaging
+            if (tapTimestamps.length > maxTapsToAverage) {
+                tapTimestamps.shift(); // Remove the oldest timestamp
+            }
+
+            // Calculate and display the new BPM
+            calculateBPM();
+
+            // Set a new inactivity timer to reset the counter if no taps occur
+            resetTimer = setTimeout(resetCounter, resetTimeoutDuration);
+        }
+
+        /**
+         * Calculates the BPM based on the recorded tap intervals and updates the display.
+         */
+        function calculateBPM() {
+            // Need at least two taps to calculate an interval
+            if (tapTimestamps.length < 2) {
+                bpmValueElement.textContent = '...'; // Indicate waiting for more taps
+                return;
+            }
+
+            // Calculate the time differences (intervals) between consecutive taps
+            const intervals = [];
+            for (let i = 1; i < tapTimestamps.length; i++) {
+                intervals.push(tapTimestamps[i] - tapTimestamps[i - 1]);
+            }
+
+            // Calculate the average interval in milliseconds
+            const totalInterval = intervals.reduce((sum, interval) => sum + interval, 0);
+            const averageIntervalMs = totalInterval / intervals.length;
+
+            // Avoid division by zero or invalid calculations
+            if (averageIntervalMs === 0 || !isFinite(averageIntervalMs)) {
+                bpmValueElement.textContent = '---'; // Indicate an error or impossible value
+                return;
+            }
+
+            // Convert average interval (ms) to Beats Per Minute (BPM)
+            // BPM = (60 seconds * 1000 ms/second) / average interval in ms
+            const rawBpm = 60000 / averageIntervalMs;
+
+            // Format BPM to two decimal places
+            const formattedBpm = rawBpm.toFixed(2);
+
+            // Update the BPM display
+            bpmValueElement.textContent = formattedBpm;
+        }
+
+        /**
+         * Resets the counter state, timers, and displays.
+         */
+        function resetCounter() {
+            tapTimestamps = []; // Clear tap history
+            bpmValueElement.textContent = '0.00'; // Reset BPM display
+            clearTimeout(resetTimer); // Clear inactivity timer
+            stopTimerInterval(); // Stop the elapsed timer
+            startTime = null; // Reset start time
+            timerDisplayElement.textContent = '00:00'; // Reset elapsed timer display
+             // Ensure tap feedback visual is removed
+            tapTargetElement.classList.remove('tapped');
+            console.log("BPM counter reset.");
+        }
+
+        // --- Timer Functions ---
+
+        /**
+         * Starts the interval timer to update the elapsed time display.
+         */
+        function startTimerInterval() {
+            stopTimerInterval(); // Clear any existing interval first
+            updateTimerDisplay(); // Update display immediately
+            timerIntervalId = setInterval(updateTimerDisplay, 1000); // Update every second
+        }
+
+        /**
+         * Stops the interval timer for the elapsed time display.
+         */
+        function stopTimerInterval() {
+            clearInterval(timerIntervalId);
+            timerIntervalId = null; // Clear the interval ID variable
+        }
+
+        /**
+         * Updates the elapsed timer display (MM:SS format).
+         */
+        function updateTimerDisplay() {
+            if (startTime === null) return; // Only run if timer has started
+
+            const elapsedMs = performance.now() - startTime;
+            const totalSeconds = Math.floor(elapsedMs / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+
+            // Format time with leading zeros (e.g., 01:05)
+            const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+            timerDisplayElement.textContent = formattedTime;
+        }
+
+        // --- Event Listeners ---
+
+        // Listen for Spacebar keydown events on the whole document
+        document.addEventListener('keydown', (event) => {
+            // Check if the pressed key is the Spacebar
+            if (event.code === 'Space' || event.key === ' ') {
+                // Prevent default spacebar action (like scrolling or activating buttons)
+                event.preventDefault();
+                handleTap(); // Trigger the tap handler
+            }
+        });
+
+        // Listen for click events on the Reset button
+        resetButton.addEventListener('click', resetCounter);
+
+        // Listen for click/tap events on the designated tap target area
+        tapTargetElement.addEventListener('click', (event) => {
+            // No need for preventDefault here usually, but kept handleTap consistent
+            handleTap(); // Trigger the tap handler
+        });
+
+        // --- Initial Console Message ---
+        console.log("BPM Counter Ready. Tap Spacebar or the display area.");
+
+    </script>
+
+</body>
+</html>
